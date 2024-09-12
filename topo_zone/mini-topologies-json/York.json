@@ -1,0 +1,727 @@
+{
+    "topo_id": "mini-topologies/York",
+    "nodes": {
+        "s0": {
+            "id": "s0",
+            "label": "Leicester0",
+            "dpid": "1",
+            "node_type": "switch",
+            "longitude": "-1.13333",
+            "latitude": "52.63333",
+            "ip": " 10.0.8.1"
+        },
+        "s1": {
+            "id": "s1",
+            "label": "Northampton1",
+            "dpid": "2",
+            "node_type": "switch",
+            "longitude": "-0.88333",
+            "latitude": "52.25",
+            "ip": " 10.0.8.2"
+        },
+        "s2": {
+            "id": "s2",
+            "label": "Sheffield2",
+            "dpid": "3",
+            "node_type": "switch",
+            "longitude": "-1.4659",
+            "latitude": "53.38297",
+            "ip": " 10.0.8.3"
+        },
+        "s3": {
+            "id": "s3",
+            "label": "Nottingham3",
+            "dpid": "4",
+            "node_type": "switch",
+            "longitude": "-1.15047",
+            "latitude": "52.9536",
+            "ip": " 10.0.8.4"
+        },
+        "s4": {
+            "id": "s4",
+            "label": "Croydon4",
+            "dpid": "5",
+            "node_type": "switch",
+            "longitude": "-0.1",
+            "latitude": "51.38333",
+            "ip": " 10.0.8.5"
+        },
+        "s5": {
+            "id": "s5",
+            "label": "Slough5",
+            "dpid": "6",
+            "node_type": "switch",
+            "longitude": "-0.58333",
+            "latitude": "51.5",
+            "ip": " 10.0.8.6"
+        },
+        "s6": {
+            "id": "s6",
+            "label": "MiltonKeynes6",
+            "dpid": "7",
+            "node_type": "switch",
+            "longitude": "-0.75583",
+            "latitude": "52.04172",
+            "ip": " 10.0.8.7"
+        },
+        "s7": {
+            "id": "s7",
+            "label": "London7",
+            "dpid": "8",
+            "node_type": "switch",
+            "longitude": "-0.12574",
+            "latitude": "51.50853",
+            "ip": " 10.0.8.8"
+        },
+        "s8": {
+            "id": "s8",
+            "label": "Reading8",
+            "dpid": "9",
+            "node_type": "switch",
+            "longitude": "-0.97113",
+            "latitude": "51.45625",
+            "ip": " 10.0.8.9"
+        },
+        "s9": {
+            "id": "s9",
+            "label": "Banbury9",
+            "dpid": "10",
+            "node_type": "switch",
+            "longitude": "-1.34029",
+            "latitude": "52.0602",
+            "ip": " 10.0.8.10"
+        },
+        "s10": {
+            "id": "s10",
+            "label": "Brighton10",
+            "dpid": "11",
+            "node_type": "switch",
+            "longitude": "-0.13947",
+            "latitude": "50.82838",
+            "ip": " 10.0.8.11"
+        },
+        "s11": {
+            "id": "s11",
+            "label": "Bristol11",
+            "dpid": "12",
+            "node_type": "switch",
+            "longitude": "-2.58333",
+            "latitude": "51.45",
+            "ip": " 10.0.8.12"
+        },
+        "s12": {
+            "id": "s12",
+            "label": "Birmingham12",
+            "dpid": "13",
+            "node_type": "switch",
+            "longitude": "-1.91667",
+            "latitude": "52.46667",
+            "ip": " 10.0.8.13"
+        },
+        "s13": {
+            "id": "s13",
+            "label": "Preston13",
+            "dpid": "14",
+            "node_type": "switch",
+            "longitude": "-2.71667",
+            "latitude": "53.76667",
+            "ip": " 10.0.8.14"
+        },
+        "s14": {
+            "id": "s14",
+            "label": "Manchester14",
+            "dpid": "15",
+            "node_type": "switch",
+            "longitude": "-2.23743",
+            "latitude": "53.48095",
+            "ip": " 10.0.8.15"
+        },
+        "s15": {
+            "id": "s15",
+            "label": "Glasgow15",
+            "dpid": "16",
+            "node_type": "switch",
+            "longitude": "-4.25763",
+            "latitude": "55.86515",
+            "ip": " 10.0.8.16"
+        },
+        "s16": {
+            "id": "s16",
+            "label": "Edinburgh16",
+            "dpid": "17",
+            "node_type": "switch",
+            "longitude": "-3.2",
+            "latitude": "55.95",
+            "ip": " 10.0.8.17"
+        },
+        "s17": {
+            "id": "s17",
+            "label": "Newcastle17",
+            "dpid": "18",
+            "node_type": "switch",
+            "longitude": "-1.61396",
+            "latitude": "54.97328",
+            "ip": " 10.0.8.18"
+        },
+        "s18": {
+            "id": "s18",
+            "label": "Middlesborough18",
+            "dpid": "19",
+            "node_type": "switch",
+            "longitude": "-1.16278",
+            "latitude": "54.57278",
+            "ip": " 10.0.8.19"
+        },
+        "s19": {
+            "id": "s19",
+            "label": "Harrogate19",
+            "dpid": "20",
+            "node_type": "switch",
+            "longitude": "-1.53333",
+            "latitude": "53.98333",
+            "ip": " 10.0.8.20"
+        },
+        "s20": {
+            "id": "s20",
+            "label": "York20",
+            "dpid": "21",
+            "node_type": "switch",
+            "longitude": "-1.08333",
+            "latitude": "53.96667",
+            "ip": " 10.0.8.21"
+        },
+        "s21": {
+            "id": "s21",
+            "label": "Leeds21",
+            "dpid": "22",
+            "node_type": "switch",
+            "longitude": "-1.54785",
+            "latitude": "53.79648",
+            "ip": " 10.0.8.22"
+        },
+        "s22": {
+            "id": "s22",
+            "label": "Carlisle22",
+            "dpid": "23",
+            "node_type": "switch",
+            "longitude": "-2.9382",
+            "latitude": "54.8951",
+            "ip": " 10.0.8.23"
+        },
+        "h0": {
+            "id": "h0",
+            "label": "h0",
+            "node_type": "host",
+            "ip": "10.0.0.1",
+            "longitude": "-1.13333",
+            "latitude": "52.63333"
+        },
+        "h1": {
+            "id": "h1",
+            "label": "h1",
+            "node_type": "host",
+            "ip": "10.0.0.2",
+            "longitude": "-0.88333",
+            "latitude": "52.25"
+        },
+        "h2": {
+            "id": "h2",
+            "label": "h2",
+            "node_type": "host",
+            "ip": "10.0.0.3",
+            "longitude": "-1.4659",
+            "latitude": "53.38297"
+        },
+        "h3": {
+            "id": "h3",
+            "label": "h3",
+            "node_type": "host",
+            "ip": "10.0.0.4",
+            "longitude": "-1.15047",
+            "latitude": "52.9536"
+        },
+        "h4": {
+            "id": "h4",
+            "label": "h4",
+            "node_type": "host",
+            "ip": "10.0.0.5",
+            "longitude": "-0.1",
+            "latitude": "51.38333"
+        },
+        "h5": {
+            "id": "h5",
+            "label": "h5",
+            "node_type": "host",
+            "ip": "10.0.0.6",
+            "longitude": "-0.58333",
+            "latitude": "51.5"
+        },
+        "h6": {
+            "id": "h6",
+            "label": "h6",
+            "node_type": "host",
+            "ip": "10.0.0.7",
+            "longitude": "-0.75583",
+            "latitude": "52.04172"
+        },
+        "h7": {
+            "id": "h7",
+            "label": "h7",
+            "node_type": "host",
+            "ip": "10.0.0.8",
+            "longitude": "-0.12574",
+            "latitude": "51.50853"
+        },
+        "h8": {
+            "id": "h8",
+            "label": "h8",
+            "node_type": "host",
+            "ip": "10.0.0.9",
+            "longitude": "-0.97113",
+            "latitude": "51.45625"
+        },
+        "h9": {
+            "id": "h9",
+            "label": "h9",
+            "node_type": "host",
+            "ip": "10.0.0.10",
+            "longitude": "-1.34029",
+            "latitude": "52.0602"
+        },
+        "h10": {
+            "id": "h10",
+            "label": "h10",
+            "node_type": "host",
+            "ip": "10.0.0.11",
+            "longitude": "-0.13947",
+            "latitude": "50.82838"
+        },
+        "h11": {
+            "id": "h11",
+            "label": "h11",
+            "node_type": "host",
+            "ip": "10.0.0.12",
+            "longitude": "-2.58333",
+            "latitude": "51.45"
+        },
+        "h12": {
+            "id": "h12",
+            "label": "h12",
+            "node_type": "host",
+            "ip": "10.0.0.13",
+            "longitude": "-1.91667",
+            "latitude": "52.46667"
+        },
+        "h13": {
+            "id": "h13",
+            "label": "h13",
+            "node_type": "host",
+            "ip": "10.0.0.14",
+            "longitude": "-2.71667",
+            "latitude": "53.76667"
+        },
+        "h14": {
+            "id": "h14",
+            "label": "h14",
+            "node_type": "host",
+            "ip": "10.0.0.15",
+            "longitude": "-2.23743",
+            "latitude": "53.48095"
+        },
+        "h15": {
+            "id": "h15",
+            "label": "h15",
+            "node_type": "host",
+            "ip": "10.0.0.16",
+            "longitude": "-4.25763",
+            "latitude": "55.86515"
+        },
+        "h16": {
+            "id": "h16",
+            "label": "h16",
+            "node_type": "host",
+            "ip": "10.0.0.17",
+            "longitude": "-3.2",
+            "latitude": "55.95"
+        },
+        "h17": {
+            "id": "h17",
+            "label": "h17",
+            "node_type": "host",
+            "ip": "10.0.0.18",
+            "longitude": "-1.61396",
+            "latitude": "54.97328"
+        },
+        "h18": {
+            "id": "h18",
+            "label": "h18",
+            "node_type": "host",
+            "ip": "10.0.0.19",
+            "longitude": "-1.16278",
+            "latitude": "54.57278"
+        },
+        "h19": {
+            "id": "h19",
+            "label": "h19",
+            "node_type": "host",
+            "ip": "10.0.0.20",
+            "longitude": "-1.53333",
+            "latitude": "53.98333"
+        },
+        "h20": {
+            "id": "h20",
+            "label": "h20",
+            "node_type": "host",
+            "ip": "10.0.0.21",
+            "longitude": "-1.08333",
+            "latitude": "53.96667"
+        },
+        "h21": {
+            "id": "h21",
+            "label": "h21",
+            "node_type": "host",
+            "ip": "10.0.0.22",
+            "longitude": "-1.54785",
+            "latitude": "53.79648"
+        },
+        "h22": {
+            "id": "h22",
+            "label": "h22",
+            "node_type": "host",
+            "ip": "10.0.0.23",
+            "longitude": "-2.9382",
+            "latitude": "54.8951"
+        }
+    },
+    "links": [
+        {
+            "link_id": "s1_h1",
+            "from": "s0",
+            "to": "h0",
+            "bandwidth": 1000,
+            "latency": 0.0
+        },
+        {
+            "link_id": "s2_h2",
+            "from": "s1",
+            "to": "h1",
+            "bandwidth": 1000,
+            "latency": 0.0
+        },
+        {
+            "link_id": "s3_h3",
+            "from": "s2",
+            "to": "h2",
+            "bandwidth": 1000,
+            "latency": 0.0
+        },
+        {
+            "link_id": "s4_h4",
+            "from": "s3",
+            "to": "h3",
+            "bandwidth": 1000,
+            "latency": 0.0
+        },
+        {
+            "link_id": "s5_h5",
+            "from": "s4",
+            "to": "h4",
+            "bandwidth": 1000,
+            "latency": 0.0
+        },
+        {
+            "link_id": "s6_h6",
+            "from": "s5",
+            "to": "h5",
+            "bandwidth": 1000,
+            "latency": 0.0
+        },
+        {
+            "link_id": "s7_h7",
+            "from": "s6",
+            "to": "h6",
+            "bandwidth": 1000,
+            "latency": 0.0
+        },
+        {
+            "link_id": "s8_h8",
+            "from": "s7",
+            "to": "h7",
+            "bandwidth": 1000,
+            "latency": 0.0
+        },
+        {
+            "link_id": "s9_h9",
+            "from": "s8",
+            "to": "h8",
+            "bandwidth": 1000,
+            "latency": 0.0
+        },
+        {
+            "link_id": "s10_h10",
+            "from": "s9",
+            "to": "h9",
+            "bandwidth": 1000,
+            "latency": 0.0
+        },
+        {
+            "link_id": "s11_h11",
+            "from": "s10",
+            "to": "h10",
+            "bandwidth": 1000,
+            "latency": 0.0
+        },
+        {
+            "link_id": "s12_h12",
+            "from": "s11",
+            "to": "h11",
+            "bandwidth": 1000,
+            "latency": 0.0
+        },
+        {
+            "link_id": "s13_h13",
+            "from": "s12",
+            "to": "h12",
+            "bandwidth": 1000,
+            "latency": 0.0
+        },
+        {
+            "link_id": "s14_h14",
+            "from": "s13",
+            "to": "h13",
+            "bandwidth": 1000,
+            "latency": 0.0
+        },
+        {
+            "link_id": "s15_h15",
+            "from": "s14",
+            "to": "h14",
+            "bandwidth": 1000,
+            "latency": 0.0
+        },
+        {
+            "link_id": "s16_h16",
+            "from": "s15",
+            "to": "h15",
+            "bandwidth": 1000,
+            "latency": 0.0
+        },
+        {
+            "link_id": "s17_h17",
+            "from": "s16",
+            "to": "h16",
+            "bandwidth": 1000,
+            "latency": 0.0
+        },
+        {
+            "link_id": "s18_h18",
+            "from": "s17",
+            "to": "h17",
+            "bandwidth": 1000,
+            "latency": 0.0
+        },
+        {
+            "link_id": "s19_h19",
+            "from": "s18",
+            "to": "h18",
+            "bandwidth": 1000,
+            "latency": 0.0
+        },
+        {
+            "link_id": "s20_h20",
+            "from": "s19",
+            "to": "h19",
+            "bandwidth": 1000,
+            "latency": 0.0
+        },
+        {
+            "link_id": "s21_h21",
+            "from": "s20",
+            "to": "h20",
+            "bandwidth": 1000,
+            "latency": 0.0
+        },
+        {
+            "link_id": "s22_h22",
+            "from": "s21",
+            "to": "h21",
+            "bandwidth": 1000,
+            "latency": 0.0
+        },
+        {
+            "link_id": "s23_h23",
+            "from": "s22",
+            "to": "h22",
+            "bandwidth": 1000,
+            "latency": 0.0
+        },
+        {
+            "link_id": "s0_s1",
+            "from": "s0",
+            "to": "s1",
+            "bandwidth": 128.0,
+            "latency": 0.2331
+        },
+        {
+            "link_id": "s0_s3",
+            "from": "s0",
+            "to": "s3",
+            "bandwidth": 128.0,
+            "latency": 0.1811
+        },
+        {
+            "link_id": "s1_s6",
+            "from": "s1",
+            "to": "s6",
+            "bandwidth": 128.0,
+            "latency": 0.1257
+        },
+        {
+            "link_id": "s2_s3",
+            "from": "s2",
+            "to": "s3",
+            "bandwidth": 128.0,
+            "latency": 0.2651
+        },
+        {
+            "link_id": "s2_s21",
+            "from": "s2",
+            "to": "s21",
+            "bandwidth": 128.0,
+            "latency": 0.2353
+        },
+        {
+            "link_id": "s4_s7",
+            "from": "s4",
+            "to": "s7",
+            "bandwidth": 128.0,
+            "latency": 0.0713
+        },
+        {
+            "link_id": "s5_s8",
+            "from": "s5",
+            "to": "s8",
+            "bandwidth": 128.0,
+            "latency": 0.1387
+        },
+        {
+            "link_id": "s5_s7",
+            "from": "s5",
+            "to": "s7",
+            "bandwidth": 128.0,
+            "latency": 0.161
+        },
+        {
+            "link_id": "s6_s7",
+            "from": "s6",
+            "to": "s7",
+            "bandwidth": 128.0,
+            "latency": 0.3732
+        },
+        {
+            "link_id": "s8_s9",
+            "from": "s8",
+            "to": "s9",
+            "bandwidth": 128.0,
+            "latency": 0.3649
+        },
+        {
+            "link_id": "s8_s10",
+            "from": "s8",
+            "to": "s10",
+            "bandwidth": 128.0,
+            "latency": 0.4613
+        },
+        {
+            "link_id": "s8_s11",
+            "from": "s8",
+            "to": "s11",
+            "bandwidth": 128.0,
+            "latency": 0.5677
+        },
+        {
+            "link_id": "s9_s12",
+            "from": "s9",
+            "to": "s12",
+            "bandwidth": 128.0,
+            "latency": 0.3041
+        },
+        {
+            "link_id": "s12_s14",
+            "from": "s12",
+            "to": "s14",
+            "bandwidth": 128.0,
+            "latency": 0.5834
+        },
+        {
+            "link_id": "s13_s22",
+            "from": "s13",
+            "to": "s22",
+            "bandwidth": 128.0,
+            "latency": 0.6418
+        },
+        {
+            "link_id": "s13_s14",
+            "from": "s13",
+            "to": "s14",
+            "bandwidth": 128.0,
+            "latency": 0.2277
+        },
+        {
+            "link_id": "s15_s16",
+            "from": "s15",
+            "to": "s16",
+            "bandwidth": 128.0,
+            "latency": 0.3384
+        },
+        {
+            "link_id": "s15_s22",
+            "from": "s15",
+            "to": "s22",
+            "bandwidth": 128.0,
+            "latency": 0.6927
+        },
+        {
+            "link_id": "s16_s17",
+            "from": "s16",
+            "to": "s17",
+            "bandwidth": 128.0,
+            "latency": 0.7502
+        },
+        {
+            "link_id": "s17_s18",
+            "from": "s17",
+            "to": "s18",
+            "bandwidth": 128.0,
+            "latency": 0.2699
+        },
+        {
+            "link_id": "s18_s20",
+            "from": "s18",
+            "to": "s20",
+            "bandwidth": 128.0,
+            "latency": 0.3435
+        },
+        {
+            "link_id": "s19_s20",
+            "from": "s19",
+            "to": "s20",
+            "bandwidth": 128.0,
+            "latency": 0.1498
+        },
+        {
+            "link_id": "s19_s21",
+            "from": "s19",
+            "to": "s21",
+            "bandwidth": 128.0,
+            "latency": 0.1057
+        },
+        {
+            "link_id": "s20_s21",
+            "from": "s20",
+            "to": "s21",
+            "bandwidth": 128.0,
+            "latency": 0.1822
+        }
+    ]
+}
