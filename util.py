@@ -53,9 +53,9 @@ def generate_hosts(base_ip, num_hosts, prefix_length=24):
         base_ip = str(ipaddress.IPv4Address(ipaddress.IPv4Address(base_ip) + 2**(32-network.prefixlen)))
     return hosts
 
-def generate_nodes(base_ip = "10.0.0.0" , num_hosts = 20 , prefix_length = 16 , num_ips_per_network = 25):
+def generate_nodes(base_ip = "10.0.0.0" , num_nodes = 100 , prefix_length = 16 , num_ips_per_network = 100):
     # 生成网络域
-    hosts = generate_hosts(base_ip, num_hosts, prefix_length)
+    hosts = generate_hosts(base_ip, num_nodes, prefix_length)
     nodes = []
     for network in hosts:
         node = {
