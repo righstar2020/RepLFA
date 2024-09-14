@@ -148,7 +148,7 @@ class RepLFA():
         self.record_data = None
     def loop(self,network_model):
         self.receive_pkts(network_model.packets)
-        self.detect_LFA()
+        self.detect_LFA() #检测会有瓶颈
         self.current_t = network_model.current_t
         if self.current_t % self.T_long == 0:
             self.T+=1
