@@ -1,2 +1,2 @@
-### LFA(link flooding attack) number experiments
+### LFA(link flooding attack) program simulation experiments
 comparing ReLFA with RepLFA.To be continue ...

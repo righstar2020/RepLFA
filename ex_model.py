@@ -30,7 +30,7 @@ class ReLFA():
     def loop(self,network_model):
         self.receive_pkts(network_model.packets)
         self.current_t = network_model.current_t
-        if network_model.current_t % 1 == 0:
+        if network_model.current_t % 1 == 0 and self.current_t != 0:
             #每秒记录一次数据
             self.record_ex_data()
         if network_model.current_t % GLOBAL_SAVE_T == 0:
@@ -42,18 +42,21 @@ class ReLFA():
             记录实验数据
         """
         # 创建二维数组
-        new_data = np.array([[self.current_t,self.traceroute_num, self.renyi_entropy]])
+        new_data = [[self.current_t,self.traceroute_num, self.renyi_entropy]]
         if self.record_data is None:
             self.record_data = new_data
         else:
-            self.record_data = np.vstack([self.record_data,new_data])
+            self.record_data.extend(new_data)
         
         
     def save_to_csv(self,file_name,data):
         file_name = 'output/'+file_name+'.csv'
         #创建DataFrame
         columns = ['time','traceroute_num', 'renyi_entropy']
-        df = pd.DataFrame(data, columns=columns)
+        if data is None:
+            df = pd.DataFrame(columns=columns) #为空则只保存文件头
+        else:    
+            df = pd.DataFrame(data, columns=columns)
         # 检查文件是否存在，以便决定是否写入表头
         if not path.exists(file_name):
             #如果文件不存在，创建一个空的CSV文件，并写入列名
@@ -65,7 +68,7 @@ class ReLFA():
     def receive_pkts(self,packets):
         #取最新的n个数据包
         if len(packets) >0:
-            self.packets_X = packets[-self.window_n:]
+            self.packets_X = packets[:]
             for packet in self.packets_X:
                 pkt_type_count = self.pkt_type_count.get(packet['pkt_type'],0)
                 self.pkt_type_count[packet['pkt_type']] = pkt_type_count+1
@@ -152,7 +155,7 @@ class RepLFA():
             #恢复信誉
             self.recover_reputation_score()
 
-        if self.current_t % 1 == 0:
+        if self.current_t % 1 == 0 and self.current_t != 0:
             #每秒记录一次数据
             self.record_ex_data()
         if self.current_t % GLOBAL_SAVE_T == 0:
@@ -164,24 +167,27 @@ class RepLFA():
             记录实验数据
         """
         #创建numpy数组
-        new_data = np.array([[self.current_t,
+        new_data = [[self.current_t,
                             self.traceroute_M_count,
                             self.reputation_ip_num,
                             self.trust_M_p,
                             self.untrust_M_p,
                             len(self.untrust_ip_dst.keys()),
-                            self.untrust_ip_dst_entropy]])
+                            self.untrust_ip_dst_entropy]]
         if self.record_data is None:
             self.record_data = new_data
         else:
-            self.record_data = np.vstack([self.record_data,new_data])
+            self.record_data.extend(new_data)
         
         
     def save_to_csv(self,file_name,data):
         file_name = 'output/'+file_name+'.csv'
         #创建DataFrame
         columns = ['time', 'traceroute_M_count', 'reputation_ip_num','trust_M_p', 'untrust_M_p','untrust_ip_dst_num','untrust_ip_dst_entropy']
-        df = pd.DataFrame(data, columns=columns)
+        if data is None:
+            df = pd.DataFrame(columns=columns)
+        else:    
+            df = pd.DataFrame(data, columns=columns)
         # 检查文件是否存在，以便决定是否写入表头
         if not path.exists(file_name):
             #如果文件不存在，创建一个空的CSV文件，并写入列名
@@ -193,12 +199,18 @@ class RepLFA():
     def receive_pkts(self,packets):
         #取全部或最新的n个数据包
         if len(packets) >0:
-            self.packets_X = packets[-self.window_n:]
+            self.packets_X = packets[:]
         
     def detect_LFA(self):
         for packet in self.packets_X:
             #收集数据包
             self.record_pkt(packet)
+            # if packet['pkt_type'] == 'Traceroute':
+            #     self.record_pkt(packet)
+            # else:
+            #     #按概率选择是否收集采样率(0.5)
+            #     if random.random() < 0.5:
+            #         self.record_pkt(packet)
         #移除长期未被访问的数据untrust_ip_dst
         for ip_dst,visited_info in self.untrust_ip_dst.copy().items():
             if self.current_t - visited_info['last_visit_time'] > 5: #5s未被访问
@@ -227,15 +239,13 @@ class RepLFA():
             self.traceroute_M_T[src_ip] = self.T #记录事件出现所在的观测周期
             if src_ip not in self.traceroute_M:
                 self.traceroute_M[src_ip] = 1 #记录新ip的traceroute事件
-                self.untrust_ips[src_ip] = 0.1 #新traceroute IP默认为不可信IP 
+                self.calculate_reputation_score(src_ip) #计算新IP的信誉分数
             else:
                 self.traceroute_M[src_ip] += 1 #记录traceroute事件
         else:
             self.all_IP_event_count+=1
             if src_ip not in self.reputation_table:
-                self.untrust_ips[src_ip] = 1 #新IP默认为可信IP 
-
-
+                self.calculate_reputation_score(src_ip) #计算新IP的信誉分数
         #更新观测概率
         trust_M_count = 0
         untrust_M_count = 0
@@ -244,7 +254,7 @@ class RepLFA():
             if ip in self.traceroute_M:
                 trust_M_count+=self.traceroute_M[ip]
         self.trust_M_p = trust_M_count/self.all_IP_event_count
-
+        
         #不可信traceroute事件观测概率
         for ip in self.untrust_ips.keys():
             if ip in self.traceroute_M:
@@ -258,9 +268,9 @@ class RepLFA():
             计算信誉分数
         """
         ext_CTI_R = max(1,gen_normal_number(mean=0.6,std=0.1,sample_size=1)[0]) #外部CTI分数符合正态分布
-        alpha = 0.5
+        alpha = 0.5 #外部CTI权重
         #记录新的IP
-        if ip not in self.reputation_table.keys():
+        if ip not in self.reputation_table:
             #新ip信誉分数为平均值
             avg_R_score = np.mean(list(self.reputation_table.values()))
             self.reputation_table[ip] = (1-alpha)*avg_R_score +alpha*ext_CTI_R
