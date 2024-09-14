@@ -202,22 +202,36 @@ class RepLFA():
             self.packets_X = packets[:]
         
     def detect_LFA(self):
-        for packet in self.packets_X:
+        start_time = time.time()
+        traceroute_num = 0
+        for packet in self.packets_X[:]:
             #收集数据包
             self.record_pkt(packet)
             # if packet['pkt_type'] == 'Traceroute':
+                # traceroute_num +=1
             #     self.record_pkt(packet)
             # else:
             #     #按概率选择是否收集采样率(0.5)
             #     if random.random() < 0.5:
             #         self.record_pkt(packet)
+        end_time = time.time()
+        print(f"used time {end_time - start_time}")
+        self.untrust_ip_dst_entropy = self.calculate_untrust_ip_dst_entropy()
+        if self.untrust_ip_dst_entropy < self.threshold_entropy and self.untrust_ip_dst_entropy > 0:
+            print(f'RepLFA detect the LFA reached! entropy: {self.untrust_ip_dst_entropy}')
         #移除长期未被访问的数据untrust_ip_dst
         for ip_dst,visited_info in self.untrust_ip_dst.copy().items():
             if self.current_t - visited_info['last_visit_time'] > 5: #5s未被访问
                 self.untrust_ip_dst.pop(ip_dst)
-        self.untrust_ip_dst_entropy = self.calculate_untrust_ip_dst_entropy()
-        if self.untrust_ip_dst_entropy < self.threshold_entropy and self.untrust_ip_dst_entropy > 0:
-            print(f'RepLFA detect the LFA reached! entropy: {self.untrust_ip_dst_entropy}')
+        #定期移除可信IP
+        # if self.current_t%5 ==0:
+        #     dict_list = list(self.reputation_table.items())
+        #     sorted_list = sorted(dict_list, key=lambda d: d[1])
+        #     reputation_table = sorted_list[int(len(sorted_list)/2):] #删除一半
+        #     for ip,value in reputation_table:
+        #         del self.reputation_table[ip]
+        #         del self.trust_ips[ip]
+
    
     def record_pkt(self,packet):
         self.collect_pkt(packet)
@@ -272,7 +286,9 @@ class RepLFA():
         #记录新的IP
         if ip not in self.reputation_table:
             #新ip信誉分数为平均值
-            avg_R_score = np.mean(list(self.reputation_table.values()))
+            avg_R_score = 0
+            if len(self.reputation_table.values())>0:
+                avg_R_score = np.mean(list(self.reputation_table.values()))
             self.reputation_table[ip] = (1-alpha)*avg_R_score +alpha*ext_CTI_R
             self.trust_ips[ip] = avg_R_score #新IP默认为可信IP
             self.reputation_ip_num+=1
