@@ -14,13 +14,13 @@ class ReLFA():
         ReLFA 采用的是瞬时熵(Renyi熵)异常定位受攻击链路，并采用阈值来检测LFA(2022)
     """
     def __init__(self) -> None:
-        self.phi = 0.7041  #Renyi entropy theshold
+        self.phi = 1.2041  #Renyi entropy theshold
         self.theta= 5 #alarm count threshold
-        self.beta = 10 #Renyi entropy param
+        self.beta = 20 #Renyi entropy param
         self.pkt_type_count = {} #ICMP(traceroute),ICMP(正常),TCP,UDP数据包出现的比例(概率)
         self.packets_X = [] #当前时间窗口采集到的数据包列表
-        self.packets_rev = []  #一段时间的采集数据包
-        self.window_n = 1000 #数据包窗口大小
+        self.pkt_type_rate_record={} #记录数据包类型比例
+        self.window_n = 9000 #数据包计算窗口大小
         self.current_t = 0
         #---------检测数据------------
         self.renyi_entropy = 0
@@ -41,8 +41,11 @@ class ReLFA():
         """
             记录实验数据
         """
+        TCP = self.pkt_type_count.get("TCP",0)
+        UDP = self.pkt_type_count.get("UDP",0)
+        Traceroute = self.pkt_type_count.get("Traceroute",0)
         # 创建二维数组
-        new_data = [[self.current_t,self.traceroute_num, self.renyi_entropy]]
+        new_data = [[self.current_t,self.traceroute_num,TCP,UDP,Traceroute,self.renyi_entropy]]
         if self.record_data is None:
             self.record_data = new_data
         else:
@@ -52,7 +55,7 @@ class ReLFA():
     def save_to_csv(self,file_name,data):
         file_name = 'output/'+file_name+'.csv'
         #创建DataFrame
-        columns = ['time','traceroute_num', 'renyi_entropy']
+        columns = ['time','traceroute_num', 'TCP','UDP','Traceroute','renyi_entropy']
         if data is None:
             df = pd.DataFrame(columns=columns) #为空则只保存文件头
         else:    
@@ -68,7 +71,9 @@ class ReLFA():
     def receive_pkts(self,packets):
         #取最新的n个数据包
         if len(packets) >0:
-            self.packets_X = packets[:]
+            self.packets_X.extend(packets[:])
+            self.packets_X = self.packets_X[-self.window_n:] #取最新的时间窗口数据
+            self.pkt_type_count = {} #每次清空统计
             for packet in self.packets_X:
                 pkt_type_count = self.pkt_type_count.get(packet['pkt_type'],0)
                 self.pkt_type_count[packet['pkt_type']] = pkt_type_count+1
@@ -81,8 +86,9 @@ class ReLFA():
     def detect_LFA(self):
         pkt_type_probabilities = []
         total_pkt_count = sum(self.pkt_type_count.values())
-        for pkt_type_count in self.pkt_type_count.values():
-            pkt_type_probabilities.append(pkt_type_count/total_pkt_count)
+        for pkt_type,pkt_type_count in self.pkt_type_count.items():
+            pkt_type_rate = pkt_type_count/total_pkt_count
+            pkt_type_probabilities.append(pkt_type_rate)
         entropy = self.calculate_renyi_entropy(pkt_type_probabilities,self.beta)
         if entropy < self.phi and entropy > 0:
             print(f'ReLFA detect the LFA reached! entropy: {entropy}')
@@ -114,18 +120,17 @@ class ReLFA():
         
         # 计算Rényi熵
         renyi_sum = np.sum(np.power(probabilities, beta))
-        return np.log2(renyi_sum) / (1 - beta)
-
-            
-    
-
+        #放大倍数便于对比
+        return 5*np.log2(renyi_sum) / (1 - beta)
 
 class RepLFA():
 
     def __init__(self) -> None:
         self.reputation_table = {}
         self.reputation_ip_num = 0
-        #-------------数据包---------------
+        self.ip_visited_table = {} #ip访问时间表
+        #-------------网络流及数据包---------------
+        self.current_flows = []
         self.packets_X = []
         #-------------ip集合---------------
         self.trust_ips = {} #可信ip地址集合
@@ -144,13 +149,15 @@ class RepLFA():
         self.T_long = 1000 #每个观测周期的时长单位s
         self.T = 0 #当前观测周期
         self.window_n = 1000 #不可信ip发送数据包检测窗口大小
+        self.x_4 = 0 #四分之一分位点
         #--------------记录数据-----------
         self.record_data = None
     def loop(self,network_model):
-        self.receive_pkts(network_model.packets)
+        #以流级别来检测，提升检测速度
+        self.receive_flows(network_model.sample_flows)
         self.detect_LFA() #检测会有瓶颈
         self.current_t = network_model.current_t
-        if self.current_t % self.T_long == 0:
+        if self.current_t % self.T_long == 0 and self.current_t >0:
             self.T+=1
             #恢复信誉
             self.recover_reputation_score()
@@ -168,12 +175,15 @@ class RepLFA():
         """
         #创建numpy数组
         new_data = [[self.current_t,
-                            self.traceroute_M_count,
-                            self.reputation_ip_num,
-                            self.trust_M_p,
-                            self.untrust_M_p,
-                            len(self.untrust_ip_dst.keys()),
-                            self.untrust_ip_dst_entropy]]
+                    self.traceroute_M_count,
+                    np.mean(list(self.reputation_table.values())),
+                    self.reputation_ip_num,
+                    self.trust_M_p,
+                    self.untrust_M_p,
+                    self.x_4,
+                    len(self.untrust_ips.keys()),
+                    len(self.untrust_ip_dst.keys()),
+                    self.untrust_ip_dst_entropy]]
         if self.record_data is None:
             self.record_data = new_data
         else:
@@ -183,7 +193,9 @@ class RepLFA():
     def save_to_csv(self,file_name,data):
         file_name = 'output/'+file_name+'.csv'
         #创建DataFrame
-        columns = ['time', 'traceroute_M_count', 'reputation_ip_num','trust_M_p', 'untrust_M_p','untrust_ip_dst_num','untrust_ip_dst_entropy']
+        columns = ['time', 'traceroute_M_count', 'reputation_mean','reputation_ip_num','trust_M_p', 
+                   'untrust_M_p','x_4','untrust_ips_num','untrust_ip_dst_num',
+                   'untrust_ip_dst_entropy']
         if data is None:
             df = pd.DataFrame(columns=columns)
         else:    
@@ -196,24 +208,17 @@ class RepLFA():
         else:
             with open(file_name, 'a', newline='') as file:
                 df.to_csv(file_name, mode='a', header=False, index=False)
-    def receive_pkts(self,packets):
+    def receive_flows(self,flows):
         #取全部或最新的n个数据包
-        if len(packets) >0:
-            self.packets_X = packets[:]
+        if len(flows) >0:
+            self.current_flows = flows[:]
         
     def detect_LFA(self):
         start_time = time.time()
         traceroute_num = 0
-        for packet in self.packets_X[:]:
-            #收集数据包
-            self.record_pkt(packet)
-            # if packet['pkt_type'] == 'Traceroute':
-                # traceroute_num +=1
-            #     self.record_pkt(packet)
-            # else:
-            #     #按概率选择是否收集采样率(0.5)
-            #     if random.random() < 0.5:
-            #         self.record_pkt(packet)
+        for flow in self.current_flows[:]:
+            #收集网络流
+            self.record_flow(flow)
         end_time = time.time()
         print(f"used time {end_time - start_time}")
         self.untrust_ip_dst_entropy = self.calculate_untrust_ip_dst_entropy()
@@ -221,34 +226,44 @@ class RepLFA():
             print(f'RepLFA detect the LFA reached! entropy: {self.untrust_ip_dst_entropy}')
         #移除长期未被访问的数据untrust_ip_dst
         for ip_dst,visited_info in self.untrust_ip_dst.copy().items():
-            if self.current_t - visited_info['last_visit_time'] > 5: #5s未被访问
+            if self.current_t - visited_info['last_visit_time'] > 8: #8s未被访问
                 self.untrust_ip_dst.pop(ip_dst)
         #定期移除可信IP
-        # if self.current_t%5 ==0:
-        #     dict_list = list(self.reputation_table.items())
-        #     sorted_list = sorted(dict_list, key=lambda d: d[1])
-        #     reputation_table = sorted_list[int(len(sorted_list)/2):] #删除一半
-        #     for ip,value in reputation_table:
-        #         del self.reputation_table[ip]
-        #         del self.trust_ips[ip]
+        if self.current_t%5 ==0:
+            dict_list = list(self.reputation_table.items())
+            sorted_list = sorted(dict_list, key=lambda d: d[1])
+            reputation_table = sorted_list[int(len(sorted_list)/2):] #删除一半
+            for ip,value in reputation_table:
+                #移除长期未被访问的IP
+                if self.current_t - self.ip_visited_table[ip]['last_visit_time']>5:
+                    del self.reputation_table[ip]
+                    del self.ip_visited_table[ip]
+                    if ip in self.untrust_ips: #如果为不可信IP，则移除
+                        self.untrust_ips.pop(ip)
+                    if ip in self.trust_ips: #如果为可信IP，则移除
+                        self.trust_ips.pop(ip)
 
    
-    def record_pkt(self,packet):
-        self.collect_pkt(packet)
+    def record_flow(self,flow):
+        self.collect_flow(flow)
+        #记录IP访问时间表
+        self.ip_visited_table[flow['src_ip']]={
+            'last_visit_time':self.current_t
+        }
         #记录低信誉值ip的访问目的地址集合
-        if packet['src_ip']  in self.untrust_ips:
-            if packet['dst_ip'] in self.untrust_ip_dst:
-                self.untrust_ip_dst[packet['dst_ip']]['last_visit_time'] = self.current_t
-                self.untrust_ip_dst[packet['dst_ip']]['visit_count'] += 1
+        if flow['src_ip']  in self.untrust_ips:
+            if flow['dst_ip'] in self.untrust_ip_dst:
+                self.untrust_ip_dst[flow['dst_ip']]['last_visit_time'] = self.current_t
+                self.untrust_ip_dst[flow['dst_ip']]['visit_count'] += 1
             else:
-                self.untrust_ip_dst[packet['dst_ip']] ={
+                self.untrust_ip_dst[flow['dst_ip']] ={
                     "last_visit_time":self.current_t,
                     "visit_count":1,
                 }
-    def collect_pkt(self,packet):
-        src_ip = packet['src_ip']
-        if packet['pkt_type'] == 'Traceroute':
-            self.all_IP_event_count+=1 #所有数据包事件+1
+    def collect_flow(self,flow):
+        src_ip = flow['src_ip']
+        if flow['flow_pkt_type'] == 'Traceroute':
+            self.all_IP_event_count+=1 #所有IP流级别事件+1
             self.traceroute_M_count+=1 #traceroute事件计数
             self.traceroute_M_T[src_ip] = self.T #记录事件出现所在的观测周期
             if src_ip not in self.traceroute_M:
@@ -256,10 +271,9 @@ class RepLFA():
                 self.calculate_reputation_score(src_ip) #计算新IP的信誉分数
             else:
                 self.traceroute_M[src_ip] += 1 #记录traceroute事件
-        else:
-            self.all_IP_event_count+=1
-            if src_ip not in self.reputation_table:
                 self.calculate_reputation_score(src_ip) #计算新IP的信誉分数
+        else:
+            self.all_IP_event_count+=1 #记录IP事件但不记录IP信誉
         #更新观测概率
         trust_M_count = 0
         untrust_M_count = 0
@@ -275,8 +289,6 @@ class RepLFA():
                 untrust_M_count+=self.traceroute_M[ip]
         self.untrust_M_p = untrust_M_count/self.all_IP_event_count
 
-        self.calculate_reputation_score(src_ip)
-
     def calculate_reputation_score(self,ip):
         """
             计算信誉分数
@@ -290,7 +302,7 @@ class RepLFA():
             if len(self.reputation_table.values())>0:
                 avg_R_score = np.mean(list(self.reputation_table.values()))
             self.reputation_table[ip] = (1-alpha)*avg_R_score +alpha*ext_CTI_R
-            self.trust_ips[ip] = avg_R_score #新IP默认为可信IP
+            self.untrust_ips[ip] = avg_R_score #新IP默认为不可信IP
             self.reputation_ip_num+=1
             return
         
@@ -300,6 +312,8 @@ class RepLFA():
         trust_p = self.trust_M_p*trust_ip_p
         untrust_p = self.untrust_M_p*untrust_ip_p
         all_p = trust_p+untrust_p
+
+        
         if all_p == 0: return
         R_score = trust_p/all_p
         if ip in self.reputation_table.keys():
@@ -312,8 +326,9 @@ class RepLFA():
         sigma = np.std(list(self.reputation_table.values()))
         z_4 = -0.6745 #标准正态分布的下四分之一分位点
         x_4 = mu + z_4*sigma
-        if R_score > x_4:
-            #在四分之一分位点之上为可信IP
+        self.x_4 = x_4
+        if R_score > mu:
+            #在二分之一分位点之上为可信IP
             self.trust_ips[ip] = R_score
         else:
             if ip in self.trust_ips:
@@ -327,9 +342,10 @@ class RepLFA():
         for ip in self.reputation_table.keys():
             R_score = self.reputation_table[ip]
             t = self.T
-            t0 = self.traceroute_M_T[ip]
-            new_R_score =R_score+(1-R_score)/(1+np.exp(-(t-t0)))
-            self.reputation_table[ip] = new_R_score
+            t0 = self.traceroute_M_T.get(ip,0) #判断IP是否有traceroute行为
+            if t0 != 0:
+                new_R_score =R_score+(1-R_score)/(1+np.exp(-(t-t0)))
+                self.reputation_table[ip] = new_R_score
 
     def calculate_untrust_ip_dst_entropy(self):
         """

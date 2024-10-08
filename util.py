@@ -2,6 +2,8 @@
 import numpy as np
 import ipaddress
 import random
+import itertools
+from collections import defaultdict
 #---------------------数学相关-------------------------------------
 def gen_normal_number(mean=30,std=5,sample_size=100):
     # 生成符合正态分布的数据
@@ -237,3 +239,34 @@ def generate_mock_links(nodes,num_links_per_node=2, max_links=None):
                                              existing_links=existing_links)
     
     return mst_links + additional_links
+
+
+
+
+
+#计算每个节点的介度中心性
+def compute_node_betweenness_centrality(topo):
+    node_ips = [node['ip'] for node in topo['nodes']]
+    path_matrix = topo['shortest_paths']
+    betweenness_centrality = defaultdict(int)
+    
+    for s, t in itertools.combinations(node_ips, 2):
+        # 获取s到t的所有最短路径
+        all_paths = path_matrix[s][t]
+        if not all_paths:
+            continue
+        
+        # 对于每一条路径，计算路径上的节点的介数中心性
+        for path in all_paths:
+            for node in set(path[1:-1]):  # 排除起点和终点
+                betweenness_centrality[node] += 1 / len(all_paths)
+    # 更新节点字典，添加介数中心性字段
+    nodes = topo['nodes']
+    for node in nodes:
+        node_ip = node['ip']
+        node['betweenness_centrality'] = betweenness_centrality.get(node_ip, 0)
+    topo['nodes'] = nodes     
+           
+    return dict(betweenness_centrality)
+                    
+                    

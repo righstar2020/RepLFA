@@ -7,7 +7,7 @@ import random
 import time
 import math
 import copy
-from util import gen_gamma_number,gen_normal_number,generate_nodes,generate_mock_links,calculate_all_pairs_shortest_paths
+from util import gen_gamma_number,compute_node_betweenness_centrality,generate_nodes,generate_mock_links,calculate_all_pairs_shortest_paths
 from ex_model import LFADefender,Balance,ReLFA,RepLFA
 #全局参数
 GLOBAL_SAVE_T = 1
@@ -86,6 +86,7 @@ class NetworkModel():
         self.hosts = [] #主机列表
         self.links = []
         self.shortest_paths = {}
+        self.centrality_results = {}
         self.nodes_status = [] #记录节点的状态信息
         self.links_status = [] #记录链路的状态信息
         self.backbone_links = [] #骨干链路        
@@ -94,16 +95,17 @@ class NetworkModel():
         self.lastest_packet = None #最新的一个数据包
 
         #-----------2.网络流配置信息
-        self.normal_flow_number = 500 #正常状态下网络的流数量
+        self.normal_flow_number = 2500 #正常状态下网络的流数量
         self.flow_duration = 2 #正常状态下流的持续时间(s) gamma分布(均值E=k*theta =1*2)
         self.flow_packet_size = 128 #流中每个数据包的大小(字节B) gamma分布(k=2,theta=60)(64B~1500B MTU)
         self.flow_speed = 10 #流速 gamma分布(均值E=k*theta =2*5) (单位KB/s) 受带宽上限限制(Max = 10 MB/s)
         self.flow_pkts_speed = 80 #每个流生成的数据包速度 需要计算 单位(个/s)
-        self.pkt_type_rate = [0.001,0.099,0.6,0.38] #正常流中数据包类型的比例(Traceroute,ICMP,UDP,TCP)
+        self.pkt_type_rate = [0.01,0.09,0.6,0.38] #正常流中数据包类型的比例(Traceroute,ICMP,UDP,TCP)
         self.current_flows = [] #当前的网络流信息
         self.record_flows = [] #记录网络流信息
+        self.sample_flows = [] #采样的网络流(发送给检测模型并定期清空)
         self.packets = [] #全局数据包信息
-    
+        
         #------------3.检测模型配置信息
         self.detect_models = [] # detection model
         
@@ -119,7 +121,7 @@ class NetworkModel():
         network_nodes = generate_nodes(base_ip = "10.0.0.0" , 
                                        num_nodes = 100 ,
                                        prefix_length = 16 , 
-                                       num_ips_per_network = 1024) #生成一定数量的节点(node、host)
+                                       num_ips_per_network = 1024) #生成一定数量的节点(node、host) 102400个IP
         network_all_hosts = []
         for node in network_nodes:
             network_all_hosts.extend(node['hosts'])
@@ -133,6 +135,9 @@ class NetworkModel():
             'shortest_paths':[]
         }
         self.shortest_paths = calculate_all_pairs_shortest_paths(self.topo) #计算每个节点的最短路径
+        # 计算每个节点的介数中心性
+        self.centrality_results = compute_node_betweenness_centrality(self.topo)
+        self.save_topo_to_json(f'BC_{self.test_id}',self.centrality_results) #保存介数中间性结果
         self.save_topo_to_json(f'topo_{self.test_id}',self.topo) #保存网络拓扑
         #设置测试参数
         #初始化攻击模型
@@ -152,13 +157,14 @@ class NetworkModel():
         while True:
             print("-----------生成网络流-----------")
             self.gen_flows_loop() #生成网络流
-            print("-----------生成LFA流-----------")
             self.LFAModel.loop(self) #LFA攻击
             for index,detect_model in enumerate(self.detect_models):
                 print(f"-----------模型{index}检测LFA-----------")
                 detect_model.loop(self)
             #清空数据包列表(这些数据包已被检测过避免重复计数)
             self.packets = []
+            #清空采样流
+            self.sample_flows = []
             #time.sleep(self.clock_T) #等待一个时钟周期
             self.current_t += self.clock_T #当前时间+T
             #-------保存数据-------------------------------------
@@ -206,13 +212,14 @@ class NetworkModel():
         for flow in flows:
             self.current_flows.append(flow)
             self.record_flows.append(flow)
-            
+            self.sample_flows.append(flow)
 
     def gen_flows_loop(self):
         """
             生成正常的网络流
         """
         flow_number = self.normal_flow_number #正常状态下网络的流数量
+        flow_normal_number = self.normal_flow_number
         pkt_type = ['Traceroute','ICMP','TCP','UDP']
         pkt_type_rate = self.pkt_type_rate #正常流中数据包类型的比例(ICMP,UDP,TCP)
         for i in range(max(flow_number,len(self.current_flows))):
@@ -225,6 +232,9 @@ class NetworkModel():
                 if flow['flow_duration'] >0:
                     if flow['flow_pkt_type'] == "Traceroute":
                         flow_normal = False #是否是正常流
+                    else:
+                        #如果是正常流则计数减1
+                        flow_normal_number-=1
                     #每个时钟周期生成数据包
                     flow_pkts_speed = int(flow['flow_pkts_speed'])
                     flow_packet_size = int(flow['flow_packet_size'])
@@ -248,7 +258,11 @@ class NetworkModel():
                     flow_end = True
             else:
                 flow_new = True
-            
+                
+            if not flow_normal and flow_normal_number > 0:
+                flow_new = True
+                flow_normal_number-=1 #生成正常流
+                
             if flow_new or flow_end:
                 #网络流结束或者为空则生成新的流
                 flow_duration = max(1,int(np.random.gamma(1,2,1)[0]))
@@ -257,6 +271,13 @@ class NetworkModel():
                 pkt_number = int(flow_speed*1024*flow_duration/flow_packet_size) #生成数据包的总数量
                 flow_pkts_speed = max(1,int(pkt_number/flow_duration))
                 flow_pkt_type = random.choices(pkt_type,pkt_type_rate)[0]
+                #Traceroute为小流量
+                if flow_pkt_type == 'Traceroute':
+                    flow_duration = 1 #1s
+                    flow_packet_size = 64 #KB
+                    flow_speed = 128 #KB/s
+                    pkt_number = int(flow_speed*flow_duration/flow_packet_size) #生成数据包的总数量2
+                    flow_pkts_speed = max(1,int(pkt_number/flow_duration))
                 flow = {
                     'src_ip':random.sample(self.hosts,1)[0], #最所有主机列表中随机选取IP
                     'dst_ip':random.sample(self.hosts,1)[0],
@@ -271,6 +292,7 @@ class NetworkModel():
                 # print("-----------生成正常网络流-----------")
                 # print(flow)
                 self.record_flows.append(flow)
+                self.sample_flows.append(flow)
                 if flow_new:
                     self.current_flows.append(flow)
                 if flow_end:
@@ -295,16 +317,17 @@ class LFAModel():
         #------------僵尸网络配置--------------
         self.bots = [] #僵尸主机的IP信息列表
         self.decoy_hosts = [] #收集到的傀儡机IP列表
-        self.max_bot_num = 20000 #攻击者掌握20000个bot
-        self.max_decoy_num = 50 #可利用的傀儡机50个
+        self.max_bot_num = 500 #攻击者掌握500个bot
+        self.max_decoy_num = 20 #可利用的傀儡机20个
+        self.max_scan_target_num = 20*100 #扫描目标主机的数目(100倍)
         #------------目标网络信息---------------
         self.target_links = [] #目标链路列表
         self.victim_hosts = [] #目标受害主机列表
         #-------LFA 测绘时间配置-----------------
-        self.traceroute_start_t = 100 #网络启动后100s开始探测网络
-        self.traceroute_duration = 2 #每个bot Traceroute报文发送时间
-        self.traceroute_T = 10      #每个bot的Traceroute报文发送间隔
-        self.traceroute_number = 50 #每个bot ICMP报文发送的次数
+        self.traceroute_start_t = 100  #网络启动后100s开始探测网络
+        self.traceroute_duration = 2  #每个bot Traceroute报文发送时间
+        self.traceroute_T = 1       #每个bot的Traceroute报文发送间隔
+        self.traceroute_number = 15 #每个ICMP报文发送的次数
         #-------LFA 攻击时间配置--------
         self.attactk_start_t = 200 #单位s 网络启动后200s时发动攻击
         self.attack_duration = 60 #每个bot 的攻击持续时间
@@ -345,10 +368,10 @@ class LFAModel():
            通过发送ICMP报文探测链路是否为骨干链路
         """
         #选取一些bot生成traceroute网络流
-        selected_bots = []
+        selected_bots = random.sample(self.bots,int(len(self.bots)*0.8))
         #每个node(网络域)选一些
         #扫描所有主机以获取网络拓扑
-        selected_hosts = random.sample(self.hosts,len(self.hosts))
+        selected_hosts = random.sample(self.hosts,self.max_scan_target_num)
         traceroute_flows = []
         for bot in selected_bots:
             traceroute_flow = None
@@ -357,8 +380,6 @@ class LFAModel():
                 pkt_size = 64 #单位B
                 pkt_number = 7 #每个流生成7个探测包(7跳之内可以到达任意网络域)
                 flow_duration = max(1,duration) #在2s内生成
-                flow_pkts_speed = max(1,int(pkt_number/flow_duration))
-                flow_speed = max(1,int(pkt_size*pkt_number/flow_duration))
                 traceroute_flow = self.gen_flow(bot,decoy_host,"Traceroute",pkt_number,pkt_size,flow_duration)
             traceroute_flows.append(traceroute_flow)
         return traceroute_flows
@@ -367,7 +388,7 @@ class LFAModel():
             生成链路洪泛攻击流量
         """
         #选取一些bot生成LFA流
-        selected_bots = random.sample(self.bots,int(len(self.bots)*0.5))
+        selected_bots = random.sample(self.bots,int(len(self.bots)*0.8))
         #随机选取一些目标傀儡机
         selected_decoy_hosts = random.sample(self.decoy_hosts,20)
         LFA_flows = []
@@ -375,10 +396,10 @@ class LFAModel():
             LFA_flow = None
             for decoy_host in selected_decoy_hosts:
                 #生成LFA网络流
-                flow_speed = 20 #流速20KB/s
+                flow_speed = 1024 #流速1MB/s
                 flow_duration = max(1,duration) #持续时间60s
-                pkt_size = 64 #包大小单位B
-                pkt_number = max(1,int(flow_speed*1024*flow_duration/pkt_size)) #生成数据包的总数量
+                pkt_size = 64*1024 #包大小单位KB
+                pkt_number = max(1,int(flow_speed*flow_duration/pkt_size)) #生成数据包的总数量
                 flow_pkts_speed = max(1,int(pkt_number/flow_duration))
                 LFA_flow = self.gen_flow(bot,decoy_host,"TCP",pkt_number,pkt_size,flow_duration)
             LFA_flows.append(LFA_flow)
