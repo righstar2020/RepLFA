@@ -243,30 +243,33 @@ def generate_mock_links(nodes,num_links_per_node=2, max_links=None):
 
 
 
-
-#计算每个节点的介度中心性
 def compute_node_betweenness_centrality(topo):
     node_ips = [node['ip'] for node in topo['nodes']]
     path_matrix = topo['shortest_paths']
     betweenness_centrality = defaultdict(int)
     
+    # 遍历所有节点对
     for s, t in itertools.combinations(node_ips, 2):
-        # 获取s到t的所有最短路径
-        all_paths = path_matrix[s][t]
-        if not all_paths:
-            continue
-        
-        # 对于每一条路径，计算路径上的节点的介数中心性
-        for path in all_paths:
-            for node in set(path[1:-1]):  # 排除起点和终点
-                betweenness_centrality[node] += 1 / len(all_paths)
+        # 获取s到t的最短路径
+        shortest_path = path_matrix[s][t]
+        if shortest_path:  # 确保存在路径
+            # 对于这条路径上的每个节点，增加其介数中心性
+            for node_ip in set(shortest_path[1:-1]):  # 排除起点和终点
+                betweenness_centrality[node_ip] += 1
+    
     # 更新节点字典，添加介数中心性字段
-    nodes = topo['nodes']
-    for node in nodes:
+    new_nodes = []
+    max_bc = np.max(list(betweenness_centrality.values()))
+    for node in topo['nodes']:
         node_ip = node['ip']
-        node['betweenness_centrality'] = betweenness_centrality.get(node_ip, 0)
-    topo['nodes'] = nodes     
-           
+        #归一化(4位小数)
+        bc = round(int(betweenness_centrality.get(node_ip, 0))/int(max_bc),4)
+        betweenness_centrality[node_ip] = bc
+        node['betweenness_centrality']  = bc
+        new_nodes.append(node)
+        
+    topo['nodes'] = new_nodes
+    
     return dict(betweenness_centrality)
                     
                     

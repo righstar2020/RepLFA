@@ -100,7 +100,7 @@ class NetworkModel():
         self.flow_packet_size = 128 #流中每个数据包的大小(字节B) gamma分布(k=2,theta=60)(64B~1500B MTU)
         self.flow_speed = 10 #流速 gamma分布(均值E=k*theta =2*5) (单位KB/s) 受带宽上限限制(Max = 10 MB/s)
         self.flow_pkts_speed = 80 #每个流生成的数据包速度 需要计算 单位(个/s)
-        self.pkt_type_rate = [0.01,0.09,0.6,0.38] #正常流中数据包类型的比例(Traceroute,ICMP,UDP,TCP)
+        self.pkt_type_rate = [0.005,0.09,0.6,0.38] #正常流中数据包类型的比例(Traceroute,ICMP,UDP,TCP)
         self.current_flows = [] #当前的网络流信息
         self.record_flows = [] #记录网络流信息
         self.sample_flows = [] #采样的网络流(发送给检测模型并定期清空)
@@ -121,7 +121,7 @@ class NetworkModel():
         network_nodes = generate_nodes(base_ip = "10.0.0.0" , 
                                        num_nodes = 100 ,
                                        prefix_length = 16 , 
-                                       num_ips_per_network = 1024) #生成一定数量的节点(node、host) 102400个IP
+                                       num_ips_per_network = 1024) #生成一定数量的节点(node=100、host) 102400个IP
         network_all_hosts = []
         for node in network_nodes:
             network_all_hosts.extend(node['hosts'])
@@ -325,9 +325,10 @@ class LFAModel():
         self.victim_hosts = [] #目标受害主机列表
         #-------LFA 测绘时间配置-----------------
         self.traceroute_start_t = 100  #网络启动后100s开始探测网络
+        self.max_traceroute_bot = 100 #限制每次进行探测的bot数量
         self.traceroute_duration = 2  #每个bot Traceroute报文发送时间
         self.traceroute_T = 1       #每个bot的Traceroute报文发送间隔
-        self.traceroute_number = 15 #每个ICMP报文发送的次数
+        self.traceroute_number = 5*int(self.max_bot_num/self.max_traceroute_bot) #总的测绘次数
         #-------LFA 攻击时间配置--------
         self.attactk_start_t = 200 #单位s 网络启动后200s时发动攻击
         self.attack_duration = 60 #每个bot 的攻击持续时间
@@ -368,7 +369,7 @@ class LFAModel():
            通过发送ICMP报文探测链路是否为骨干链路
         """
         #选取一些bot生成traceroute网络流
-        selected_bots = random.sample(self.bots,int(len(self.bots)*0.8))
+        selected_bots = random.sample(self.bots,self.max_traceroute_bot)
         #每个node(网络域)选一些
         #扫描所有主机以获取网络拓扑
         selected_hosts = random.sample(self.hosts,self.max_scan_target_num)

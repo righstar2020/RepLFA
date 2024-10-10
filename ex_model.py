@@ -229,7 +229,8 @@ class RepLFA():
             if self.current_t - visited_info['last_visit_time'] > 8: #8s未被访问
                 self.untrust_ip_dst.pop(ip_dst)
         #定期移除可信IP
-        if self.current_t%5 ==0:
+        #IP池过大(>5000)移除部分信誉高的IP
+        if self.current_t%5 ==0 or len(self.reputation_table) > 5000:
             dict_list = list(self.reputation_table.items())
             sorted_list = sorted(dict_list, key=lambda d: d[1])
             reputation_table = sorted_list[int(len(sorted_list)/2):] #删除一半
