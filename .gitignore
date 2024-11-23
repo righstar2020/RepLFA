@@ -3,4 +3,4 @@
 *.csv
 
 #忽略json配置文件
-*.json
+mini-topologies-json/*

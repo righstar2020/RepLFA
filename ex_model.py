@@ -5,7 +5,7 @@ from datetime import datetime
 import random
 import time
 import math
-from util import gen_gamma_number,gen_normal_number,generate_nodes
+from util import gen_gamma_number,gen_normal_number,generate_nodes,calculate_gateway_node_ip
 #全局参数
 GLOBAL_SAVE_T = 15
 
@@ -20,7 +20,7 @@ class ReLFA():
         self.pkt_type_count = {} #ICMP(traceroute),ICMP(正常),TCP,UDP数据包出现的比例(概率)
         self.packets_X = [] #当前时间窗口采集到的数据包列表
         self.pkt_type_rate_record={} #记录数据包类型比例
-        self.window_n = 9000 #数据包计算窗口大小
+        self.window_n = 12000 #数据包计算窗口大小
         self.current_t = 0
         #---------检测数据------------
         self.renyi_entropy = 0
@@ -130,6 +130,7 @@ class RepLFA():
         self.reputation_ip_num = 0
         self.ip_visited_table = {} #ip访问时间表
         #-------------网络流及数据包---------------
+        self.network_model = None
         self.current_flows = []
         self.packets_X = []
         #-------------ip集合---------------
@@ -154,6 +155,7 @@ class RepLFA():
         self.record_data = None
     def loop(self,network_model):
         #以流级别来检测，提升检测速度
+        self.network_model = network_model
         self.receive_flows(network_model.sample_flows)
         self.detect_LFA() #检测会有瓶颈
         self.current_t = network_model.current_t
@@ -169,6 +171,8 @@ class RepLFA():
             #每30秒保存一次数据
             self.save_to_csv(f'RepLFA_{network_model.test_id}',self.record_data)
             self.record_data = None #并且清空记录
+            #计算恶意流比例并保存
+            self.calculate_malicious_flows_rate_and_save(f'malicious_flows_rate_{network_model.test_id}')
     def record_ex_data(self):
         """
             记录实验数据
@@ -177,7 +181,7 @@ class RepLFA():
         new_data = [[self.current_t,
                     self.traceroute_M_count,
                     np.mean(list(self.reputation_table.values())),
-                    self.reputation_ip_num,
+                    len(self.reputation_table.values()),
                     self.trust_M_p,
                     self.untrust_M_p,
                     self.x_4,
@@ -226,17 +230,18 @@ class RepLFA():
             print(f'RepLFA detect the LFA reached! entropy: {self.untrust_ip_dst_entropy}')
         #移除长期未被访问的数据untrust_ip_dst
         for ip_dst,visited_info in self.untrust_ip_dst.copy().items():
-            if self.current_t - visited_info['last_visit_time'] > 8: #8s未被访问
+            if self.current_t - visited_info['last_visit_time'] > 20: #20s未被访问
                 self.untrust_ip_dst.pop(ip_dst)
         #定期移除可信IP
-        #IP池过大(>5000)移除部分信誉高的IP
-        if self.current_t%5 ==0 or len(self.reputation_table) > 5000:
+        #IP池过大(>3000)移除部分信誉高的IP
+        # if self.current_t%5 ==0 or len(self.reputation_table) > 2000:
+        if len(self.reputation_table) > 2000:
             dict_list = list(self.reputation_table.items())
             sorted_list = sorted(dict_list, key=lambda d: d[1])
-            reputation_table = sorted_list[int(len(sorted_list)/2):] #删除一半
-            for ip,value in reputation_table:
+            remove_reputation_table = sorted_list[:int(len(sorted_list)*0.5)] #移除1/2
+            for ip,value in remove_reputation_table:
                 #移除长期未被访问的IP
-                if self.current_t - self.ip_visited_table[ip]['last_visit_time']>5:
+                if self.current_t - self.ip_visited_table[ip]['last_visit_time']>3:
                     del self.reputation_table[ip]
                     del self.ip_visited_table[ip]
                     if ip in self.untrust_ips: #如果为不可信IP，则移除
@@ -272,7 +277,7 @@ class RepLFA():
                 self.calculate_reputation_score(src_ip) #计算新IP的信誉分数
             else:
                 self.traceroute_M[src_ip] += 1 #记录traceroute事件
-                self.calculate_reputation_score(src_ip) #计算新IP的信誉分数
+                self.calculate_reputation_score(src_ip) #更新IP的信誉分数
         else:
             self.all_IP_event_count+=1 #记录IP事件但不记录IP信誉
         #更新观测概率
@@ -294,7 +299,7 @@ class RepLFA():
         """
             计算信誉分数
         """
-        ext_CTI_R = max(1,gen_normal_number(mean=0.6,std=0.1,sample_size=1)[0]) #外部CTI分数符合正态分布
+        ext_CTI_R = min(1,random.random()) #随机赋值CTI分数
         alpha = 0.5 #外部CTI权重
         #记录新的IP
         if ip not in self.reputation_table:
@@ -302,8 +307,13 @@ class RepLFA():
             avg_R_score = 0
             if len(self.reputation_table.values())>0:
                 avg_R_score = np.mean(list(self.reputation_table.values()))
-            self.reputation_table[ip] = (1-alpha)*avg_R_score +alpha*ext_CTI_R
-            self.untrust_ips[ip] = avg_R_score #新IP默认为不可信IP
+            R_score = (1-alpha)*avg_R_score +alpha*ext_CTI_R
+            self.reputation_table[ip] = R_score
+            #新IP随机设可信或不可信
+            if R_score>avg_R_score:
+                self.trust_ips[ip] = R_score 
+            else:
+                self.untrust_ips[ip] = R_score 
             self.reputation_ip_num+=1
             return
         
@@ -364,10 +374,45 @@ class RepLFA():
             if p > 0:  # 避免对0取对数
                entropy -= p * math.log2(p)
         return entropy
-
-
-
-
+    def calculate_malicious_flows_rate_and_save(self,file_name):
+        """
+            计算恶意流量占比
+            根据低信誉IP段IP
+        """
+        file_name = 'output/'+file_name+'.csv'
+        #AS->gateway ip字典
+        as_gateway_ips=self.network_model.as_gateway_ips
+        untrust_ips= self.untrust_ips
+        malicious_flows = {}
+        for ip in untrust_ips.keys():
+            gateway_ip = calculate_gateway_node_ip(ip)
+            malicious_flows[gateway_ip]=malicious_flows.get(gateway_ip,0)+1
+        
+        # 计算比例(归一化)
+        for ip in malicious_flows.keys():
+            malicious_flows[ip] = round(malicious_flows[ip]/len(untrust_ips),4)
+        
+        
+        #创建DataFrame
+        columns = []
+        as_malicious_flows = []
+        for as_id,gateway_ip in as_gateway_ips.items():
+            columns.append(as_id)
+            malicious_flows_rate=malicious_flows.get(gateway_ip,0)
+            as_malicious_flows.append(malicious_flows_rate)
+        data=[as_malicious_flows]
+        if data is None:
+            df = pd.DataFrame(columns=columns)
+        else:    
+            df = pd.DataFrame(data, columns=columns)
+        # 检查文件是否存在，以便决定是否写入表头
+        if not path.exists(file_name):
+            with open(file_name, 'w', newline='') as file:
+                df.to_csv(file_name, mode='w', header=True, index=False)
+        else:
+            with open(file_name, 'a', newline='') as file:
+                df.to_csv(file_name, mode='a', header=False, index=False)
+        
 
 
 

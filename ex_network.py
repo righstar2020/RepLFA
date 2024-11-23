@@ -8,6 +8,7 @@ import time
 import math
 import copy
 from util import gen_gamma_number,compute_node_betweenness_centrality,generate_nodes,generate_mock_links,calculate_all_pairs_shortest_paths
+from util_net import read_topo_from_json_file,choice_bots_by_malicious_flows
 from ex_model import LFADefender,Balance,ReLFA,RepLFA
 #全局参数
 GLOBAL_SAVE_T = 1
@@ -82,11 +83,14 @@ class NetworkModel():
         #------------1.网络拓扑配置信息
         self.network_name = 'Highwinds' #网络拓扑名称(from topozone)常用:Highwinds(20nodes,50links)、
         self.topo = {}
+        self.network_topo = {}
         self.nodes = [] #一个节点代表一个AS域
         self.hosts = [] #主机列表
+        self.bots_map = {} #僵尸网络信息
         self.links = []
         self.shortest_paths = {}
         self.centrality_results = {}
+        self.as_gateway_ips = {}
         self.nodes_status = [] #记录节点的状态信息
         self.links_status = [] #记录链路的状态信息
         self.backbone_links = [] #骨干链路        
@@ -95,12 +99,12 @@ class NetworkModel():
         self.lastest_packet = None #最新的一个数据包
 
         #-----------2.网络流配置信息
-        self.normal_flow_number = 2500 #正常状态下网络的流数量
+        self.normal_flow_number = 3500 #正常状态下网络的流数量
         self.flow_duration = 2 #正常状态下流的持续时间(s) gamma分布(均值E=k*theta =1*2)
         self.flow_packet_size = 128 #流中每个数据包的大小(字节B) gamma分布(k=2,theta=60)(64B~1500B MTU)
         self.flow_speed = 10 #流速 gamma分布(均值E=k*theta =2*5) (单位KB/s) 受带宽上限限制(Max = 10 MB/s)
         self.flow_pkts_speed = 80 #每个流生成的数据包速度 需要计算 单位(个/s)
-        self.pkt_type_rate = [0.005,0.09,0.6,0.38] #正常流中数据包类型的比例(Traceroute,ICMP,UDP,TCP)
+        self.pkt_type_rate = [0.0007,0.09,0.6,0.38] #正常流中数据包类型的比例(Traceroute,ICMP,UDP,TCP)
         self.current_flows = [] #当前的网络流信息
         self.record_flows = [] #记录网络流信息
         self.sample_flows = [] #采样的网络流(发送给检测模型并定期清空)
@@ -117,26 +121,34 @@ class NetworkModel():
         # 获取当前日期和时间(生成测试ID)
         now = datetime.now()
         self.test_id = now.strftime("%Y_%m_%d_%H_%M_%S")
-        #生成网络拓扑(节点、链路)
-        network_nodes = generate_nodes(base_ip = "10.0.0.0" , 
-                                       num_nodes = 100 ,
-                                       prefix_length = 16 , 
-                                       num_ips_per_network = 1024) #生成一定数量的节点(node=100、host) 102400个IP
+        #读取网络拓扑(节点、链路)
+        network_topo = read_topo_from_json_file("./topo_zone/process_topologies/Aarnet_topo.json")
         network_all_hosts = []
-        for node in network_nodes:
-            network_all_hosts.extend(node['hosts'])
-        self.hosts = network_all_hosts
-        self.links = generate_mock_links(network_nodes) #生成mock链路
-        self.nodes = network_nodes
+        for node in network_topo['nodes'].values():
+            network_all_hosts.extend(node['hosts']) #加载所有主机
+        self.network_topo = network_topo
+        bots,self.bots_map= choice_bots_by_malicious_flows(network_topo,bots_num=2000)
+        
+        normal_hosts = []
+        for host in network_all_hosts:
+            #假设僵尸不会发送正常流量
+            if host not in bots:
+                normal_hosts.append(host)
+                
+        self.hosts = normal_hosts
+        self.links = list(network_topo['links']) 
+        self.nodes = list(network_topo['nodes'].values())
+        self.as_gateway_ips = {node['id']:node['ip'] for id,node in network_topo['nodes'].items()}
+        #每个节点的最短路径
+        self.shortest_paths = network_topo['shortest_paths'] 
+        #每个节点的介数中心性
+        self.centrality_results = {node['ip']:node['betweenness'] for id,node in network_topo['nodes'].items()}
         self.topo = {
-            'name':'Random_Mock',
+            'name':network_topo['topo_id'],
             'nodes': self.nodes,
             'links':self.links,
             'shortest_paths':[]
         }
-        self.shortest_paths = calculate_all_pairs_shortest_paths(self.topo) #计算每个节点的最短路径
-        # 计算每个节点的介数中心性
-        self.centrality_results = compute_node_betweenness_centrality(self.topo)
         self.save_topo_to_json(f'BC_{self.test_id}',self.centrality_results) #保存介数中间性结果
         self.save_topo_to_json(f'topo_{self.test_id}',self.topo) #保存网络拓扑
         #设置测试参数
@@ -253,7 +265,6 @@ class NetworkModel():
                     self.current_flows[i] = flow
                     #网络流持续时间减一个时钟周期
                     flow['flow_duration'] -= self.clock_T
-                    
                 else:
                     flow_end = True
             else:
@@ -279,7 +290,7 @@ class NetworkModel():
                     pkt_number = int(flow_speed*flow_duration/flow_packet_size) #生成数据包的总数量2
                     flow_pkts_speed = max(1,int(pkt_number/flow_duration))
                 flow = {
-                    'src_ip':random.sample(self.hosts,1)[0], #最所有主机列表中随机选取IP
+                    'src_ip':random.sample(self.hosts,1)[0], #在所有主机列表中随机选取IP
                     'dst_ip':random.sample(self.hosts,1)[0],
                     'flow_duration':flow_duration,
                     'flow_packet_size':flow_packet_size,
@@ -315,42 +326,61 @@ class LFAModel():
         self.nodes = [] #所有的节点列表
         self.hosts = [] #所有主机列表
         #------------僵尸网络配置--------------
-        self.bots = [] #僵尸主机的IP信息列表
+        self.bots = [] 
+        self.bots_map = {} #僵尸主机的IP信息列表
         self.decoy_hosts = [] #收集到的傀儡机IP列表
         self.max_bot_num = 500 #攻击者掌握500个bot
         self.max_decoy_num = 20 #可利用的傀儡机20个
-        self.max_scan_target_num = 20*100 #扫描目标主机的数目(100倍)
+        self.max_scan_target_num = 100 #扫描目标主机的数目(100倍)
+        self.attack_target_as_id = ""
+        self.attack_target_as_hosts=[]
         #------------目标网络信息---------------
         self.target_links = [] #目标链路列表
         self.victim_hosts = [] #目标受害主机列表
         #-------LFA 测绘时间配置-----------------
         self.traceroute_start_t = 100  #网络启动后100s开始探测网络
-        self.max_traceroute_bot = 100 #限制每次进行探测的bot数量
-        self.traceroute_duration = 2  #每个bot Traceroute报文发送时间
-        self.traceroute_T = 1       #每个bot的Traceroute报文发送间隔
-        self.traceroute_number = 5*int(self.max_bot_num/self.max_traceroute_bot) #总的测绘次数
+        self.traceroute_bot_num = 1000 #用于测绘的bots数量
+        self.period_traceroute_bot_num = 100 #限制每次进行集体探测的bot数量
+        self.traceroute_bots = []
+        self.traceroute_duration = 5  #每个探测流持续时间（尽量延长）
+        self.traceroute_T = 5       #每次集体Traceroute的时间间隔
+        self.traceroute_number = 7*int(self.traceroute_bot_num/self.period_traceroute_bot_num) #总的测绘次数
         #-------LFA 攻击时间配置--------
-        self.attactk_start_t = 200 #单位s 网络启动后200s时发动攻击
-        self.attack_duration = 60 #每个bot 的攻击持续时间
+        self.attactk_start_t = 300 #单位s 网络启动后300s时发动攻击
+        self.attack_flow_duration = 20 #每个攻击流的持续时间
         self.attack_T = 2 #每个bot的LFA攻击时间间隔 s
-        self.attack_number = 5 #每个bot的攻击次数
+        self.attack_number = 50 #攻击次数
         #------- 时间计数--------
         self.pre_traceroute_t = 0
         self.pre_attack_t = 0
     def init_model(self,network_model):
         self.nodes = network_model.nodes
         self.hosts = network_model.hosts
-        hosts_len = len(network_model.hosts)
-        random_hosts = random.sample(network_model.hosts,int(hosts_len/5)) #选取一些随机主机作为bot和decoy
-        self.bots = random_hosts[-self.max_bot_num:] #选取最大数量的bot
-        self.decoy_hosts = random_hosts[:self.max_decoy_num] #选取最大数量傀儡机
+        #根据恶意流比例选取bots
+        self.bots_map= network_model.bots_map
+        self.bots = []
+        for bots in self.bots_map.values():
+            self.bots.extend(bots)
+        self.max_bot_num = len(self.bots)
+        self.traceroute_bot_num = int(len(self.bots)/4) #取4分之一的bot用于测绘
+        self.traceroute_bots = random.sample(self.bots,self.traceroute_bot_num)
+        self.traceroute_number = 7*int(self.traceroute_bot_num/self.period_traceroute_bot_num) #总的测绘次数
+        #选择某一个网络域作为攻击目标域
+        self.attack_target_as_id = random.choice(list(network_model.network_topo['nodes'].keys()))
+        self.attack_target_as_hosts=network_model.network_topo['nodes'][self.attack_target_as_id]['hosts']
+        self.max_scan_target_num = max(20,int(len(self.attack_target_as_hosts))) #扫描网络域部分主机
+        self.max_decoy_num = max(10,int(self.max_scan_target_num/10)) #傀儡机只有1/10
+        self.decoy_hosts = self.attack_target_as_hosts[:self.max_decoy_num] #选取傀儡机
+        
     def loop(self,network_model):
         current_t = network_model.current_t
         if current_t >= self.traceroute_start_t:
             if self.traceroute_number > 0:
                 if current_t - self.pre_traceroute_t >= self.traceroute_T:
                     print("----------生成LFA测绘流----------")
-                    network_model.append_flows(self.gen_traceroute_flows(2)) 
+                    network_model.append_flows(
+                        self.gen_traceroute_flows(self.traceroute_number,
+                                                  self.traceroute_duration)) 
                     self.pre_traceroute_t = current_t
                     self.traceroute_number -= 1
 
@@ -358,21 +388,24 @@ class LFAModel():
             if self.attack_number > 0:
                 if current_t - self.pre_attack_t >= self.attack_T:
                     print("----------LFA攻击开始----------")
-                    attack_duration = 60 #攻击持续时间60s
-                    network_model.append_flows(self.gen_LFA_flows(attack_duration))
+                    network_model.append_flows(self.gen_LFA_flows(self.attack_flow_duration ))
                     self.pre_attack_t = current_t
                     self.attack_number -= 1
                     
-    def gen_traceroute_flows(self,duration=2):
+    def gen_traceroute_flows(self,current_number=0,duration=2):
         """
            send tracroute packet to find the backbone link
            通过发送ICMP报文探测链路是否为骨干链路
         """
         #选取一些bot生成traceroute网络流
-        selected_bots = random.sample(self.bots,self.max_traceroute_bot)
+        
+        index_end = (current_number*self.period_traceroute_bot_num)%self.traceroute_bot_num
+        index_end = min(index_end,self.period_traceroute_bot_num)
+        index_start = max(0,index_end-self.period_traceroute_bot_num)
+        selected_bots = self.traceroute_bots[index_start:index_end-1]
         #每个node(网络域)选一些
         #扫描所有主机以获取网络拓扑
-        selected_hosts = random.sample(self.hosts,self.max_scan_target_num)
+        selected_hosts = random.sample(self.attack_target_as_hosts,self.max_scan_target_num)
         traceroute_flows = []
         for bot in selected_bots:
             traceroute_flow = None
@@ -391,7 +424,7 @@ class LFAModel():
         #选取一些bot生成LFA流
         selected_bots = random.sample(self.bots,int(len(self.bots)*0.8))
         #随机选取一些目标傀儡机
-        selected_decoy_hosts = random.sample(self.decoy_hosts,20)
+        selected_decoy_hosts = random.sample(self.decoy_hosts,int(self.max_decoy_num/2))
         LFA_flows = []
         for bot in selected_bots:
             LFA_flow = None

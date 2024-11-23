@@ -266,8 +266,10 @@ def compute_node_betweenness_centrality(topo):
         bc = round(int(betweenness_centrality.get(node_ip, 0))/int(max_bc),4)
         betweenness_centrality[node_ip] = bc
         node['betweenness_centrality']  = bc
-        new_nodes.append(node)
-        
+        node['malicious_flows'] = bc #恶意流比例与bc一致
+        node['costs'] = bc #成本与bc一致
+        node['filtering_capacities'] = 3*bc #过滤能力与bc一致
+      
     topo['nodes'] = new_nodes
     
     return dict(betweenness_centrality)
